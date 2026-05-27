@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The Analyst Dashboard</title>
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- Skip-to-content link (first focusable element) -->
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <!-- ================================================================
+       LOADING STATE — Skeleton shimmer screens
+  ================================================================ -->
+  <div id="loading-state" class="state-fullscreen" aria-live="polite" aria-label="Loading dashboard data">
+    <div class="container">
+      <!-- Skeleton Header -->
+      <div class="skeleton-header-row">
+        <div class="skeleton-block skeleton-logo"></div>
+        <div class="skeleton-block skeleton-title"></div>
+        <div class="skeleton-block skeleton-icon-btn"></div>
+      </div>
+
+      <!-- Skeleton Date Bar -->
+      <div class="skeleton-date-row">
+        <div class="skeleton-block skeleton-date-input"></div>
+        <div class="skeleton-block skeleton-date-input"></div>
+        <div class="skeleton-block skeleton-preset-btn"></div>
+        <div class="skeleton-block skeleton-preset-btn"></div>
+        <div class="skeleton-block skeleton-preset-btn"></div>
+      </div>
+
+      <!-- Skeleton KPI Grid -->
+      <div class="kpi-grid" aria-hidden="true">
+        <div class="skeleton-kpi-card"><div class="skeleton-block skeleton-kpi-label"></div><div class="skeleton-block skeleton-kpi-value"></div><div class="skeleton-block skeleton-kpi-change"></div></div>
+        <div class="skeleton-kpi-card"><div class="skeleton-block skeleton-kpi-label"></div><div class="skeleton-block skeleton-kpi-value"></div><div class="skeleton-block skeleton-kpi-change"></div></div>
+        <div class="skeleton-kpi-card"><div class="skeleton-block skeleton-kpi-label"></div><div class="skeleton-block skeleton-kpi-value"></div><div class="skeleton-block skeleton-kpi-change"></div></div>
+        <div class="skeleton-kpi-card"><div class="skeleton-block skeleton-kpi-label"></div><div class="skeleton-block skeleton-kpi-value"></div><div class="skeleton-block skeleton-kpi-change"></div></div>
+        <div class="skeleton-kpi-card"><div class="skeleton-block skeleton-kpi-label"></div><div class="skeleton-block skeleton-kpi-value"></div><div class="skeleton-block skeleton-kpi-change"></div></div>
+        <div class="skeleton-kpi-card"><div class="skeleton-block skeleton-kpi-label"></div><div class="skeleton-block skeleton-kpi-value"></div><div class="skeleton-block skeleton-kpi-change"></div></div>
+        <div class="skeleton-kpi-card"><div class="skeleton-block skeleton-kpi-label"></div><div class="skeleton-block skeleton-kpi-value"></div><div class="skeleton-block skeleton-kpi-change"></div></div>
+        <div class="skeleton-kpi-card"><div class="skeleton-block skeleton-kpi-label"></div><div class="skeleton-block skeleton-kpi-value"></div><div class="skeleton-block skeleton-kpi-change"></div></div>
+      </div>
+
+      <!-- Skeleton Chart Row -->
+      <div class="skeleton-chart-row">
+        <div class="skeleton-chart-card"><div class="skeleton-block skeleton-chart-title"></div><div class="skeleton-block skeleton-chart-body"></div></div>
+        <div class="skeleton-chart-card"><div class="skeleton-block skeleton-chart-title"></div><div class="skeleton-block skeleton-chart-body"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       ERROR STATE
+  ================================================================ -->
+  <div id="error-state" class="state-fullscreen hidden" role="alert">
+    <div class="state-content">
+      <i data-lucide="alert-triangle" class="state-icon state-icon--error"></i>
+      <h2 class="state-title">Unable to Load Data</h2>
+      <p class="state-message">We couldn't fetch the report data. This could be due to a network issue or the data source being unavailable.</p>
+      <button id="retry-btn" class="btn btn--primary">
+        <i data-lucide="refresh-cw"></i>
+        Try Again
+      </button>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       EMPTY STATE
+  ================================================================ -->
+  <div id="empty-state" class="state-fullscreen hidden" role="status">
+    <div class="state-content">
+      <i data-lucide="inbox" class="state-icon state-icon--empty"></i>
+      <h2 class="state-title">No Orders Found</h2>
+      <p class="state-message">There are no orders in the selected date range. Try expanding your date range or viewing all-time data.</p>
+      <button id="view-all-btn" class="btn btn--primary">
+        <i data-lucide="calendar"></i>
+        View All Time
+      </button>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       MAIN DASHBOARD
+  ================================================================ -->
+  <div id="dashboard" class="hidden">
+
+    <!-- Stale Data Warning Banner -->
+    <div id="stale-banner" class="stale-banner hidden" role="alert">
+      <div class="container">
+        <div class="stale-banner__content">
+          <i data-lucide="clock" class="stale-banner__icon"></i>
+          <span id="stale-banner-text" class="stale-banner__text"></span>
+          <button id="stale-refresh-btn" class="btn btn--warning-outline btn--sm">Refresh Now</button>
+          <button id="stale-dismiss-btn" class="btn btn--icon btn--sm" aria-label="Dismiss stale data warning">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Header -->
+    <header class="site-header" role="banner">
+      <div class="container">
+        <div class="header__inner">
+          <div class="header__left">
+            <img id="logo-img" src="assets/logo.png" alt="Business logo" class="header__logo hidden" width="32" height="32">
+            <h1 id="business-name" class="header__title"></h1>
+          </div>
+          <div class="header__right">
+            <span id="last-updated" class="header__last-updated"></span>
+            <button
+              id="data-quality-badge"
+              class="data-quality-badge hidden"
+              aria-expanded="false"
+              aria-controls="data-quality-details"
+            >
+              <i data-lucide="alert-circle"></i>
+              <span id="data-quality-count"></span> rows skipped
+            </button>
+            <button
+              id="settings-btn"
+              class="btn btn--icon"
+              aria-label="Open settings"
+              aria-expanded="false"
+              aria-controls="settings-panel"
+            >
+              <i data-lucide="settings"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Data Quality Details (expandable) -->
+        <div
+          id="data-quality-details"
+          class="data-quality-details hidden"
+          role="region"
+          aria-label="Data quality issues"
+        >
+          <table class="data-quality-table">
+            <thead>
+              <tr>
+                <th scope="col">Row</th>
+                <th scope="col">Reference</th>
+                <th scope="col">Reason</th>
+              </tr>
+            </thead>
+            <tbody id="data-quality-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main id="main-content" class="main-content">
+      <div class="container">
+
+        <!-- Date Range Picker -->
+        <section class="date-range-section" aria-label="Date range filter">
+          <div class="date-range__inputs">
+            <div class="date-range__field">
+              <label for="date-from" class="date-range__label">From</label>
+              <input type="date" id="date-from" class="date-input" aria-label="Start date">
+            </div>
+            <div class="date-range__field">
+              <label for="date-to" class="date-range__label">To</label>
+              <input type="date" id="date-to" class="date-input" aria-label="End date">
+            </div>
+          </div>
+          <div class="date-range__presets" role="group" aria-label="Quick date presets">
+            <button class="preset-btn" data-preset="this-week">This Week</button>
+            <button class="preset-btn" data-preset="this-month">This Month</button>
+            <button class="preset-btn" data-preset="last-30">Last 30 Days</button>
+            <button class="preset-btn" data-preset="this-year">This Year</button>
+            <button class="preset-btn" data-preset="all-time">All Time</button>
+          </div>
+        </section>
+
+        <!-- KPI Cards Grid -->
+        <section
+          id="kpi-section"
+          class="kpi-section"
+          aria-label="Key performance indicators"
+          aria-live="polite"
+          aria-atomic="false"
+        >
+          <div id="kpi-grid" class="kpi-grid"></div>
+        </section>
+
+        <!-- Charts Section -->
+        <section class="charts-section" aria-label="Data visualizations">
+
+          <!-- Time Series Line Chart (full width) -->
+          <div class="chart-card chart-card--full">
+            <h2 class="chart-card__title">Orders &amp; Revenue Over Time</h2>
+            <div class="chart-container">
+              <canvas id="chart-timeseries" role="img" aria-label="Line chart showing orders and revenue over time"></canvas>
+            </div>
+            <p id="sr-timeseries" class="sr-only" aria-live="polite"></p>
+          </div>
+
+          <!-- Two-column row: Status donut + Peak Days bar -->
+          <div class="charts-two-col">
+            <div class="chart-card">
+              <h2 class="chart-card__title">Order Status Breakdown</h2>
+              <div class="chart-container chart-container--square">
+                <canvas id="chart-status" role="img" aria-label="Donut chart showing order status distribution"></canvas>
+              </div>
+              <p id="sr-status" class="sr-only" aria-live="polite"></p>
+            </div>
+            <div class="chart-card">
+              <h2 class="chart-card__title">Peak Order Days</h2>
+              <div class="chart-container">
+                <canvas id="chart-peak-days" role="img" aria-label="Bar chart showing order volume by day of week"></canvas>
+              </div>
+              <p id="sr-peak-days" class="sr-only" aria-live="polite"></p>
+            </div>
+          </div>
+
+          <!-- Delivery Rate by City (full width) -->
+          <div class="chart-card chart-card--full">
+            <h2 class="chart-card__title">Delivery Rate by City</h2>
+            <div class="chart-container chart-container--tall">
+              <canvas id="chart-delivery-city" role="img" aria-label="Horizontal bar chart showing delivery success rate per city"></canvas>
+            </div>
+            <p id="sr-delivery-city" class="sr-only" aria-live="polite"></p>
+          </div>
+
+          <!-- Dynamic Dimension Charts (inserted by ui.js) -->
+          <div id="dimension-charts-container" class="charts-two-col"></div>
+
+          <!-- Promo Code Analysis (full width) -->
+          <div class="chart-card chart-card--full">
+            <h2 class="chart-card__title">Promo Code Analysis</h2>
+            <div id="promo-analysis" class="promo-analysis">
+              <div class="promo-stats" id="promo-stats"></div>
+              <div class="chart-container">
+                <canvas id="chart-promo-codes" role="img" aria-label="Bar chart showing top promo codes by usage"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Top Clients (full width) -->
+          <div class="chart-card chart-card--full">
+            <h2 class="chart-card__title">Top Clients</h2>
+            <div id="top-clients" class="top-clients"></div>
+          </div>
+
+        </section>
+
+        <!-- Actions Bar -->
+        <section class="actions-bar" aria-label="Dashboard actions">
+          <button id="refresh-btn" class="btn btn--primary btn--action">
+            <i data-lucide="refresh-cw" class="btn__icon"></i>
+            <span id="refresh-btn-text">Refresh Data</span>
+          </button>
+          <button id="export-csv-btn" class="btn btn--outline btn--action">
+            <i data-lucide="download" class="btn__icon"></i>
+            Download CSV
+          </button>
+        </section>
+
+      </div>
+    </main>
+  </div><!-- end #dashboard -->
+
+  <!-- ================================================================
+       SETTINGS PANEL
+  ================================================================ -->
+  <div id="settings-overlay" class="settings-overlay hidden" aria-hidden="true"></div>
+
+  <aside
+    id="settings-panel"
+    class="settings-panel"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Settings"
+    aria-hidden="true"
+  >
+    <div class="settings-panel__header">
+      <h2 class="settings-panel__title">
+        <i data-lucide="settings"></i>
+        Settings
+      </h2>
+      <button id="settings-close-btn" class="btn btn--icon" aria-label="Close settings">
+        <i data-lucide="x"></i>
+      </button>
+    </div>
+    <div class="settings-panel__body">
+      <fieldset class="settings-group">
+        <legend class="settings-group__title">Appearance</legend>
+
+        <!-- Theme Selection -->
+        <div class="settings-row">
+          <span class="settings-row__label" id="theme-group-label">Theme</span>
+          <div class="theme-options" role="radiogroup" aria-labelledby="theme-group-label">
+            <label class="theme-option">
+              <input type="radio" name="theme" value="system" class="theme-radio">
+              <i data-lucide="monitor"></i>
+              <span>System</span>
+            </label>
+            <label class="theme-option">
+              <input type="radio" name="theme" value="light" class="theme-radio">
+              <i data-lucide="sun"></i>
+              <span>Light</span>
+            </label>
+            <label class="theme-option">
+              <input type="radio" name="theme" value="dark" class="theme-radio">
+              <i data-lucide="moon"></i>
+              <span>Dark</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Smart KPI Coloring Toggle -->
+        <div class="settings-row">
+          <label class="settings-row__label" for="smart-kpi-toggle">Smart KPI Coloring</label>
+          <div class="toggle-wrapper">
+            <input
+              type="checkbox"
+              id="smart-kpi-toggle"
+              class="toggle-input"
+              role="switch"
+              aria-checked="true"
+            >
+            <label for="smart-kpi-toggle" class="toggle-track" aria-hidden="true">
+              <span class="toggle-thumb"></span>
+            </label>
+          </div>
+        </div>
+
+      </fieldset>
+    </div>
+  </aside>
+
+  <!-- Toast Notification Container -->
+  <div
+    id="toast-container"
+    class="toast-container"
+    role="status"
+    aria-live="polite"
+    aria-atomic="false"
+  ></div>
+
+  <!-- ================================================================
+       SCRIPTS — loaded in required order per Rules.md
+       CDN scripts first, then application files
+  ================================================================ -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
