@@ -534,8 +534,14 @@ const UIModule = (() => {
     const { statuses, currency } = jsonConfig;
     const totalOrders  = filteredOrders.length;
 
-    const promoOrders  = filteredOrders.filter(o => String(o.promo_code || '').trim() !== '');
-    const noPromoOrders = filteredOrders.filter(o => String(o.promo_code || '').trim() === '');
+    const promoOrders  = filteredOrders.filter(o => {
+      const code = String(o.promo_code || '').trim();
+      return code !== '' && code !== '-';
+    });
+    const noPromoOrders = filteredOrders.filter(o => {
+      const code = String(o.promo_code || '').trim();
+      return code === '' || code === '-';
+    });
 
     const promoPct     = totalOrders > 0 ? (promoOrders.length / totalOrders * 100).toFixed(1) : '0.0';
     const noPromoPct   = totalOrders > 0 ? (noPromoOrders.length / totalOrders * 100).toFixed(1) : '0.0';
@@ -553,7 +559,10 @@ const UIModule = (() => {
 
     const totalDiscount = promoOrders
       .filter(o => DataModule.classifyStatus(o.status, statuses) === 'delivered')
-      .reduce((sum, o) => sum + (Number(o.discount) || 0), 0);
+      .reduce((sum, o) => {
+        const discount = String(o.discount || '').trim();
+        return sum + (discount && discount !== '-' ? Number(discount) || 0 : 0);
+      }, 0);
 
     container.innerHTML = `
       <div class="promo-stats-grid">
@@ -570,7 +579,7 @@ const UIModule = (() => {
         <div class="promo-stat-card">
           <div class="promo-stat__label">Promo Delivery Rate</div>
           <div class="promo-stat__value numeric">${promoDelivRate}${promoDelivRate !== '—' ? '%' : ''}</div>
-          <div class="promo-stat__sub">vs ${noPromoDelivRate}${noPromoDelivRate !== '—' ? '%' : ''} without promo</div>
+          <div class="promo-stat__sub">${promoDelivRate !== '—' ? `vs ${noPromoDelivRate}${noPromoDelivRate !== '—' ? '%' : ''} without promo` : 'No promo orders in this period'}</div>
         </div>
         <div class="promo-stat-card">
           <div class="promo-stat__label">Total Discount Given</div>

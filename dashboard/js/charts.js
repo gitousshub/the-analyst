@@ -346,22 +346,27 @@ const ChartsModule = (() => {
 
   const _DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-  const _buildPeakDaysData = (filteredOrders) => {
-    const counts = [0, 0, 0, 0, 0, 0, 0]; // Mon=0 ... Sun=6
+  const _buildPeakDaysData = (filteredOrders, jsonConfig) => {
+    const counts    = [0, 0, 0, 0, 0, 0, 0]; // Mon=0 ... Sun=6
+    const delivered = [0, 0, 0, 0, 0, 0, 0];
+    const statuses  = jsonConfig ? jsonConfig.statuses : [];
     filteredOrders.forEach(order => {
       const d = new Date(order.date);
       const dayJS = d.getDay(); // 0=Sun,1=Mon...6=Sat
       const idx = dayJS === 0 ? 6 : dayJS - 1; // Convert to Mon=0
       counts[idx]++;
+      if (DataModule.classifyStatus(order.status, statuses) === 'delivered') {
+        delivered[idx]++;
+      }
     });
-    return counts;
+    return { counts, delivered };
   };
 
-  const _initPeakDaysChart = (filteredOrders) => {
+  const _initPeakDaysChart = (filteredOrders, jsonConfig) => {
     const canvas = document.getElementById('chart-peak-days');
     if (!canvas) return;
 
-    const counts  = _buildPeakDaysData(filteredOrders);
+    const { counts, delivered } = _buildPeakDaysData(filteredOrders, jsonConfig);
     const maxVal  = Math.max(...counts);
     const colors  = _chartColors();
     // Highlight the highest bar
@@ -387,7 +392,7 @@ const ChartsModule = (() => {
           legend: { display: false },
           tooltip: {
             ..._baseOptions().plugins.tooltip,
-            callbacks: { label: (ctx) => ` Orders: ${ctx.parsed.y}` },
+            callbacks: { label: (ctx) => [` Total Orders: ${ctx.parsed.y}`, ` Delivered: ${delivered[ctx.dataIndex]}`] },
           },
         },
         scales: {
@@ -404,17 +409,21 @@ const ChartsModule = (() => {
     }
   };
 
-  const _updatePeakDaysChart = (filteredOrders) => {
+  const _updatePeakDaysChart = (filteredOrders, jsonConfig) => {
     const chart = _charts.peakDays;
     if (!chart) return;
 
-    const counts   = _buildPeakDaysData(filteredOrders);
+    const { counts, delivered } = _buildPeakDaysData(filteredOrders, jsonConfig);
     const maxVal   = Math.max(...counts);
     const colors   = _chartColors();
     const bgColors = counts.map(v => v === maxVal && maxVal > 0 ? colors[0] : `${colors[0]}80`);
 
     chart.data.datasets[0].data            = counts;
     chart.data.datasets[0].backgroundColor = bgColors;
+    chart.options.plugins.tooltip.callbacks.label = (ctx) => [
+      ` Total Orders: ${ctx.parsed.y}`,
+      ` Delivered: ${delivered[ctx.dataIndex]}`,
+    ];
     chart.update();
 
     const srEl = document.getElementById('sr-peak-days');
@@ -556,9 +565,10 @@ const ChartsModule = (() => {
 
     filteredOrders.forEach(order => {
       const val = String(order[key] || '').trim() || '(None)';
-      if (!groups[val]) groups[val] = { count: 0, revenue: 0 };
+      if (!groups[val]) groups[val] = { count: 0, delivered: 0, revenue: 0 };
       groups[val].count++;
       if (DataModule.classifyStatus(order.status, statuses) === 'delivered') {
+        groups[val].delivered++;
         groups[val].revenue += Number(order.prix_final) || 0;
       }
     });
@@ -567,9 +577,10 @@ const ChartsModule = (() => {
       .sort(([, a], [, b]) => b.count - a.count);
 
     return {
-      labels:   sorted.map(([label]) => label),
-      counts:   sorted.map(([, d]) => d.count),
-      revenues: sorted.map(([, d]) => d.revenue),
+      labels:          sorted.map(([label]) => label),
+      counts:          sorted.map(([, d]) => d.count),
+      deliveredCounts: sorted.map(([, d]) => d.delivered),
+      revenues:        sorted.map(([, d]) => d.revenue),
     };
   };
 
@@ -590,7 +601,7 @@ const ChartsModule = (() => {
       if (!canvas) return;
 
       const chartType   = _effectiveChartType(allOrders, dimension);
-      const { labels, counts, revenues } = _buildDimensionData(filteredOrders, jsonConfig, dimension);
+      const { labels, counts, deliveredCounts, revenues } = _buildDimensionData(filteredOrders, jsonConfig, dimension);
       const colors      = _chartColors();
       const currency    = jsonConfig.currency;
 
@@ -624,9 +635,10 @@ const ChartsModule = (() => {
               ..._baseOptions().plugins.tooltip,
               callbacks: {
                 label: (ctx) => {
-                  const rev    = revenues[ctx.dataIndex];
-                  const count  = isHorizontalBar ? ctx.parsed.x : ctx.parsed;
-                  const lines  = [` Orders: ${count}`];
+                  const rev       = revenues[ctx.dataIndex];
+                  const delivered = deliveredCounts[ctx.dataIndex];
+                  const count     = isHorizontalBar ? ctx.parsed.x : ctx.parsed;
+                  const lines     = [` Total Orders: ${count}`, ` Delivered: ${delivered}`];
                   if (rev !== undefined && rev > 0) {
                     lines.push(` Revenue: ${DataModule.formatCurrency(rev, currency)}`);
                   }
@@ -650,7 +662,7 @@ const ChartsModule = (() => {
       const chart   = _charts[chartId];
       if (!chart) return;
 
-      const { labels, counts, revenues } = _buildDimensionData(filteredOrders, jsonConfig, dimension);
+      const { labels, counts, deliveredCounts, revenues } = _buildDimensionData(filteredOrders, jsonConfig, dimension);
       const currency = jsonConfig.currency;
       const isHorizontalBar = chart.config.type === 'bar';
       const colors = _chartColors();
@@ -663,9 +675,10 @@ const ChartsModule = (() => {
         chart.data.datasets[0].backgroundColor = colors.slice(0, labels.length);
       }
       chart.options.plugins.tooltip.callbacks.label = (ctx) => {
-        const rev   = revenues[ctx.dataIndex];
-        const count = isHorizontalBar ? ctx.parsed.x : ctx.parsed;
-        const lines = [` Orders: ${count}`];
+        const rev       = revenues[ctx.dataIndex];
+        const delivered = deliveredCounts[ctx.dataIndex];
+        const count     = isHorizontalBar ? ctx.parsed.x : ctx.parsed;
+        const lines     = [` Total Orders: ${count}`, ` Delivered: ${delivered}`];
         if (rev !== undefined && rev > 0) {
           lines.push(` Revenue: ${DataModule.formatCurrency(rev, currency)}`);
         }
@@ -679,28 +692,35 @@ const ChartsModule = (() => {
   // 6. Promo Codes Bar Chart
   // ──────────────────────────────────────────────────────────────────
 
-  const _buildPromoCodesData = (filteredOrders) => {
-    const codeCounts = {};
+  const _buildPromoCodesData = (filteredOrders, jsonConfig) => {
+    const statuses   = jsonConfig ? jsonConfig.statuses : [];
+    const codeStats  = {};
     filteredOrders.forEach(order => {
       const code = String(order.promo_code || '').trim();
-      if (code) codeCounts[code] = (codeCounts[code] || 0) + 1;
+      if (!code || code === '-') return;
+      if (!codeStats[code]) codeStats[code] = { count: 0, delivered: 0 };
+      codeStats[code].count++;
+      if (DataModule.classifyStatus(order.status, statuses) === 'delivered') {
+        codeStats[code].delivered++;
+      }
     });
 
-    const sorted = Object.entries(codeCounts)
-      .sort(([, a], [, b]) => b - a)
+    const sorted = Object.entries(codeStats)
+      .sort(([, a], [, b]) => b.count - a.count)
       .slice(0, 10);
 
     return {
-      labels: sorted.map(([code]) => code),
-      counts: sorted.map(([, count]) => count),
+      labels:          sorted.map(([code]) => code),
+      counts:          sorted.map(([, d]) => d.count),
+      deliveredCounts: sorted.map(([, d]) => d.delivered),
     };
   };
 
-  const _initPromoCodesChart = (filteredOrders) => {
+  const _initPromoCodesChart = (filteredOrders, jsonConfig) => {
     const canvas = document.getElementById('chart-promo-codes');
     if (!canvas) return;
 
-    const { labels, counts } = _buildPromoCodesData(filteredOrders);
+    const { labels, counts, deliveredCounts } = _buildPromoCodesData(filteredOrders, jsonConfig);
     const colors = _chartColors();
 
     _charts.promoCodes = new Chart(canvas, {
@@ -724,7 +744,7 @@ const ChartsModule = (() => {
           legend: { display: false },
           tooltip: {
             ..._baseOptions().plugins.tooltip,
-            callbacks: { label: (ctx) => ` Used ${ctx.parsed.x} times` },
+            callbacks: { label: (ctx) => [` Total Orders: ${ctx.parsed.x}`, ` Delivered: ${deliveredCounts[ctx.dataIndex]}`] },
           },
         },
         scales: {
@@ -735,13 +755,17 @@ const ChartsModule = (() => {
     });
   };
 
-  const _updatePromoCodesChart = (filteredOrders) => {
+  const _updatePromoCodesChart = (filteredOrders, jsonConfig) => {
     const chart = _charts.promoCodes;
     if (!chart) return;
 
-    const { labels, counts } = _buildPromoCodesData(filteredOrders);
+    const { labels, counts, deliveredCounts } = _buildPromoCodesData(filteredOrders, jsonConfig);
     chart.data.labels           = labels;
     chart.data.datasets[0].data = counts;
+    chart.options.plugins.tooltip.callbacks.label = (ctx) => [
+      ` Total Orders: ${ctx.parsed.x}`,
+      ` Delivered: ${deliveredCounts[ctx.dataIndex]}`,
+    ];
     chart.update();
   };
 
@@ -758,19 +782,19 @@ const ChartsModule = (() => {
 
     _initTimeSeriesChart(filteredOrders, jsonConfig, from, to);
     _initStatusChart(filteredOrders, jsonConfig);
-    _initPeakDaysChart(filteredOrders);
+    _initPeakDaysChart(filteredOrders, jsonConfig);
     _initDeliveryCityChart(filteredOrders, jsonConfig);
     _initDimensionCharts(filteredOrders, jsonConfig);
-    _initPromoCodesChart(filteredOrders);
+    _initPromoCodesChart(filteredOrders, jsonConfig);
   };
 
   const updateAllCharts = (filteredOrders, jsonConfig, from, to) => {
     _updateTimeSeriesChart(filteredOrders, jsonConfig, from, to);
     _updateStatusChart(filteredOrders, jsonConfig);
-    _updatePeakDaysChart(filteredOrders);
+    _updatePeakDaysChart(filteredOrders, jsonConfig);
     _updateDeliveryCityChart(filteredOrders, jsonConfig);
     _updateDimensionCharts(filteredOrders, jsonConfig);
-    _updatePromoCodesChart(filteredOrders);
+    _updatePromoCodesChart(filteredOrders, jsonConfig);
   };
 
   const destroyAllCharts = () => {
